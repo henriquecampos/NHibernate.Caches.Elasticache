@@ -1,0 +1,2 @@
+NHibernate.Caches.Elasticache
+=============================
