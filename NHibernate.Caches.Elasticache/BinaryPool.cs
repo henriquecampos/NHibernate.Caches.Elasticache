@@ -8,7 +8,7 @@ namespace NHibernate.Caches.Elasticache
     /// <summary>
     /// Server pool implementing the binary protocol.
     /// </summary>
-    public class BinaryPool : DefaultServerPool
+    public class BinaryPool : ElasticServerPool
     {
         ISaslAuthenticationProvider authenticationProvider;
         IMemcachedClientConfiguration configuration;

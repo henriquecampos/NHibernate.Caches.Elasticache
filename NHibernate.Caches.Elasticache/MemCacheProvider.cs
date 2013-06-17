@@ -1,5 +1,6 @@
 ﻿using Enyim.Caching;
 using Enyim.Caching.Configuration;
+using Enyim.Caching.Memcached;
 using NHibernate.Cache;
 using System.Collections.Generic;
 using System.Configuration;
@@ -74,9 +75,14 @@ namespace NHibernate.Caches.Elasticache
                 {
                     throw new ConfigurationErrorsException("Configuration for enyim.com/memcached not found");
                 }
+
                 if (clientInstance == null)
                 {
-                    clientInstance = new MemcachedClient(config);
+                    var pool = new BinaryPool(config);
+                    IMemcachedKeyTransformer keyTransformer = config.CreateKeyTransformer() ?? new DefaultKeyTransformer();
+                    ITranscoder transcoder = config.CreateTranscoder() ?? new DefaultTranscoder();
+                    IPerformanceMonitor performanceMonitor = config.CreatePerformanceMonitor();
+                    clientInstance = new MemcachedClient(pool, keyTransformer, transcoder, performanceMonitor);
                 }
             }
         }
