@@ -17,7 +17,7 @@ namespace NHibernate.Caches.Elasticache
         private IMemcachedNode[] allNodes;
 
         private bool isRessurectRunning;
-        private Queue<IMemcachedNode> deadNodes;
+        private readonly Queue<IMemcachedNode> deadNodes;
         private readonly Timer ressurectTimer;
 
 		private IMemcachedClientConfiguration configuration;
@@ -47,6 +47,7 @@ namespace NHibernate.Caches.Elasticache
 
             this.ressurectTimer = new Timer(RessurectNodes, null, Timeout.Infinite, Timeout.Infinite);
             this.checkNodesTimer = new Timer(CheckNodesCallback, null, Timeout.Infinite, Timeout.Infinite);
+            this.deadNodes = new Queue<IMemcachedNode>();
 		}
 
         ~ElasticServerPool()
