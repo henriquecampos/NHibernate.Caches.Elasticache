@@ -12,7 +12,7 @@ namespace NHibernate.Caches.Elasticache
             get { return (String)base["endpoint"]; }
         }
 
-        [ConfigurationProperty("cluster", IsRequired = true, IsKey = true)]
+        [ConfigurationProperty("cluster", IsRequired = false, IsKey = true)]
         public string ClusterId
         {
             get { return (string)base["cluster"]; }

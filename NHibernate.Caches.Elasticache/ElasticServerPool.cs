@@ -96,6 +96,8 @@ namespace NHibernate.Caches.Elasticache
 
         private IPEndPoint[] GetCurrentEndpoints()
         {
+            if (String.IsNullOrEmpty(this.clusterId)) return new IPEndPoint[0];
+
             IPEndPoint[] newEndpoints;
             using (var client = new AmazonElastiCacheClient(this.regionEndpoint))
             {
