@@ -74,7 +74,7 @@ namespace NHibernate.Caches.Elasticache
                 var oldNodes = this.allNodes;
                 Interlocked.Exchange(ref this.allNodes, newNodes);
 
-                foreach (var node in oldNodes) 
+                foreach (var node in oldNodes)
                     node.Dispose();
 
                 oldNodes = null;
@@ -90,7 +90,7 @@ namespace NHibernate.Caches.Elasticache
             IPEndPoint[] newEndpoints;
             using (var client = new AmazonElastiCacheClient(clientEndpoint))
             {
-                var request = new Amazon.ElastiCache.Model.DescribeCacheClustersRequest().WithCacheClusterId(clusterId);
+                var request = new Amazon.ElastiCache.Model.DescribeCacheClustersRequest().WithCacheClusterId(clusterId).WithShowCacheNodeInfo(true);
                 var result = client.DescribeCacheClusters(request).DescribeCacheClustersResult;
                 var cluster = result.CacheClusters.FirstOrDefault();
                 if (cluster == null) return new IPEndPoint[0];
@@ -140,7 +140,10 @@ namespace NHibernate.Caches.Elasticache
 
 		void IServerPool.Start()
 		{
+            this.endpoints = new IPEndPoint[0];
+            this.allNodes = new IMemcachedNode[0];
             this.nodeLocator = new KetamaNodeLocator();
+            this.nodeLocator.Initialize(this.allNodes);
             rezCallback(null);
 
             var timeout = TimeSpan.FromMinutes(10);

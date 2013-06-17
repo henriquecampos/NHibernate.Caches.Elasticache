@@ -1,6 +1,7 @@
 ﻿using Enyim.Caching;
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
+using Enyim.Caching.Memcached.Results.Factories;
 using NHibernate.Cache;
 using System.Collections.Generic;
 using System.Configuration;
@@ -83,6 +84,11 @@ namespace NHibernate.Caches.Elasticache
                     ITranscoder transcoder = config.CreateTranscoder() ?? new DefaultTranscoder();
                     IPerformanceMonitor performanceMonitor = config.CreatePerformanceMonitor();
                     clientInstance = new MemcachedClient(pool, keyTransformer, transcoder, performanceMonitor);
+                    clientInstance.StoreOperationResultFactory = new DefaultStoreOperationResultFactory();
+                    clientInstance.GetOperationResultFactory = new DefaultGetOperationResultFactory();
+                    clientInstance.MutateOperationResultFactory = new DefaultMutateOperationResultFactory();
+                    clientInstance.ConcatOperationResultFactory = new DefaultConcatOperationResultFactory();
+                    clientInstance.RemoveOperationResultFactory = new DefaultRemoveOperationResultFactory();
                 }
             }
         }
