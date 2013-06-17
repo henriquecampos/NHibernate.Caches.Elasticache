@@ -54,7 +54,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BinaryPool.cs" />
+    <Compile Include="ElasticConfigurationSection.cs" />
     <Compile Include="ElasticServerPool.cs" />
+    <Compile Include="IElasticConfiguration.cs" />
     <Compile Include="KetamaNodeLocator.cs" />
     <Compile Include="MemCacheClient.cs" />
     <Compile Include="MemCacheProvider.cs" />

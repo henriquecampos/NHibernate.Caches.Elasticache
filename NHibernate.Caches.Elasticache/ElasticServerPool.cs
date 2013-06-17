@@ -16,20 +16,28 @@ namespace NHibernate.Caches.Elasticache
         private IMemcachedNode[] allNodes;
 
 		private IMemcachedClientConfiguration configuration;
-		private IOperationFactory factory;
+        private IOperationFactory factory;
 		private IMemcachedNodeLocator nodeLocator;
 
+        private RegionEndpoint regionEndpoint;
+        private TimeSpan interval;
+        private string clusterId;
+
 		private object DeadSync = new Object();
-		private System.Threading.Timer resurrectTimer;
-		private bool isDisposed;
+        private bool isDisposed;
+        private System.Threading.Timer checkNodesTimer;
 		private event Action<IMemcachedNode> nodeFailed;
 
-		public ElasticServerPool(IMemcachedClientConfiguration configuration, IOperationFactory opFactory)
+		public ElasticServerPool(IMemcachedClientConfiguration configuration, IElasticConfiguration elasticConfig, IOperationFactory opFactory)
 		{
 			if (configuration == null) throw new ArgumentNullException("socketConfig");
+            if (elasticConfig == null) throw new ArgumentNullException("elasticConfig");
 			if (opFactory == null) throw new ArgumentNullException("opFactory");
-
+            
 			this.configuration = configuration;
+            this.regionEndpoint = elasticConfig.CreateRegionEndpoint();
+            this.interval = elasticConfig.CreateInterval();
+            this.clusterId = elasticConfig.ClusterId;
 			this.factory = opFactory;
 		}
 
@@ -56,11 +64,16 @@ namespace NHibernate.Caches.Elasticache
             return newNodes;
         }
 
-		private void rezCallback(object state)
+		private void CheckNodesCallback(object state)
 		{
-			lock (this.DeadSync)
-			{
-				if (this.isDisposed) return;
+            this.CheckNodes();	
+		}
+
+        private void CheckNodes()
+        {
+            lock (this.DeadSync)
+            {
+                if (this.isDisposed) return;
 
                 IPEndPoint[] newEndpoints = GetCurrentEndpoints();
 
@@ -78,22 +91,24 @@ namespace NHibernate.Caches.Elasticache
                     node.Dispose();
 
                 oldNodes = null;
-			}
-		}
+            }
+        }
 
         private IPEndPoint[] GetCurrentEndpoints()
         {
-            //TODO: Put these in config file
-            var clientEndpoint = RegionEndpoint.SAEast1;
-            const string clusterId = "cache-homolog";
-
             IPEndPoint[] newEndpoints;
-            using (var client = new AmazonElastiCacheClient(clientEndpoint))
+            using (var client = new AmazonElastiCacheClient(this.regionEndpoint))
             {
-                var request = new Amazon.ElastiCache.Model.DescribeCacheClustersRequest().WithCacheClusterId(clusterId).WithShowCacheNodeInfo(true);
+                var request = new Amazon.ElastiCache.Model.DescribeCacheClustersRequest().WithCacheClusterId(this.clusterId).WithShowCacheNodeInfo(true);
                 var result = client.DescribeCacheClusters(request).DescribeCacheClustersResult;
+
                 var cluster = result.CacheClusters.FirstOrDefault();
-                if (cluster == null) return new IPEndPoint[0];
+                if (cluster == null)
+                {
+                    //Cant find cluster id, disabling callback
+                    this.checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                    return new IPEndPoint[0];
+                }
 
                 newEndpoints = new IPEndPoint[cluster.CacheNodes.Count];
 
@@ -144,10 +159,9 @@ namespace NHibernate.Caches.Elasticache
             this.allNodes = new IMemcachedNode[0];
             this.nodeLocator = new KetamaNodeLocator();
             this.nodeLocator.Initialize(this.allNodes);
-            rezCallback(null);
+            this.CheckNodes();
 
-            var timeout = TimeSpan.FromMinutes(10);
-            this.resurrectTimer = new System.Threading.Timer(rezCallback, null, timeout, timeout);
+            this.checkNodesTimer = new System.Threading.Timer(CheckNodesCallback, null, this.interval, this.interval);
 		}
 
 		event Action<IMemcachedNode> IServerPool.NodeFailed
@@ -183,12 +197,12 @@ namespace NHibernate.Caches.Elasticache
 					catch (Exception) { }
 
 				// stop the timer
-				if (this.resurrectTimer != null)
-					using (this.resurrectTimer)
-						this.resurrectTimer.Change(Timeout.Infinite, Timeout.Infinite);
+				if (this.checkNodesTimer != null)
+					using (this.checkNodesTimer)
+						this.checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
 
 				this.allNodes = null;
-				this.resurrectTimer = null;
+				this.checkNodesTimer = null;
 			}
 		}
 

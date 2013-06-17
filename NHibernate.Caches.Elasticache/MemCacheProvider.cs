@@ -19,17 +19,25 @@ namespace NHibernate.Caches.Elasticache
         private static readonly IInternalLogger log;
         private static MemcachedClient clientInstance;
         private static readonly IMemcachedClientConfiguration config;
+        private static readonly IElasticConfiguration elasticConfig;
         private static readonly object syncObject = new object();
 
         static MemCacheProvider()
         {
             log = LoggerProvider.LoggerFor(typeof(MemCacheProvider));
             config = ConfigurationManager.GetSection("enyim.com/memcached") as IMemcachedClientConfiguration;
+            elasticConfig = ConfigurationManager.GetSection("elastiCache") as IElasticConfiguration;
+
             if (config == null)
             {
                 log.Info("enyim.com/memcached configuration section not found, using default configuration (127.0.0.1:11211).");
                 config = new MemcachedClientConfiguration();
                 config.Servers.Add(new IPEndPoint(IPAddress.Loopback, 11211));
+            }
+
+            if (elasticConfig == null)
+            {
+                elasticConfig = new ElasticConfigurationSection();
             }
         }
 
@@ -79,7 +87,7 @@ namespace NHibernate.Caches.Elasticache
 
                 if (clientInstance == null)
                 {
-                    var pool = new BinaryPool(config);
+                    var pool = new BinaryPool(config, elasticConfig);
                     IMemcachedKeyTransformer keyTransformer = config.CreateKeyTransformer() ?? new DefaultKeyTransformer();
                     ITranscoder transcoder = config.CreateTranscoder() ?? new DefaultTranscoder();
                     IPerformanceMonitor performanceMonitor = config.CreatePerformanceMonitor();

@@ -13,8 +13,8 @@ namespace NHibernate.Caches.Elasticache
         ISaslAuthenticationProvider authenticationProvider;
         IMemcachedClientConfiguration configuration;
 
-        public BinaryPool(IMemcachedClientConfiguration configuration)
-            : base(configuration, new BinaryOperationFactory())
+        public BinaryPool(IMemcachedClientConfiguration configuration, IElasticConfiguration elasticConfiguration)
+            : base(configuration, elasticConfiguration, new BinaryOperationFactory())
         {
             this.authenticationProvider = GetProvider(configuration);
             this.configuration = configuration;
