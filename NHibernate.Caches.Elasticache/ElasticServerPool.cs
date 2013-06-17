@@ -1,5 +1,6 @@
 ﻿using Amazon;
 using Amazon.ElastiCache;
+using Amazon.ElastiCache.Model;
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using System;
@@ -15,6 +16,10 @@ namespace NHibernate.Caches.Elasticache
         private IPEndPoint[] endpoints;
         private IMemcachedNode[] allNodes;
 
+        private bool isRessurectRunning;
+        private Queue<IMemcachedNode> deadNodes;
+        private readonly Timer ressurectTimer;
+
 		private IMemcachedClientConfiguration configuration;
         private IOperationFactory factory;
 		private IMemcachedNodeLocator nodeLocator;
@@ -25,7 +30,7 @@ namespace NHibernate.Caches.Elasticache
 
 		private object DeadSync = new Object();
         private bool isDisposed;
-        private System.Threading.Timer checkNodesTimer;
+        private readonly Timer checkNodesTimer;
 		private event Action<IMemcachedNode> nodeFailed;
 
 		public ElasticServerPool(IMemcachedClientConfiguration configuration, IElasticConfiguration elasticConfig, IOperationFactory opFactory)
@@ -39,6 +44,9 @@ namespace NHibernate.Caches.Elasticache
             this.interval = elasticConfig.CreateInterval();
             this.clusterId = elasticConfig.ClusterId;
 			this.factory = opFactory;
+
+            this.ressurectTimer = new Timer(RessurectNodes, null, Timeout.Infinite, Timeout.Infinite);
+            this.checkNodesTimer = new Timer(CheckNodesCallback, null, Timeout.Infinite, Timeout.Infinite);
 		}
 
         ~ElasticServerPool()
@@ -79,6 +87,10 @@ namespace NHibernate.Caches.Elasticache
 
                 if (this.endpoints.SequenceEqual(newEndpoints)) return;
 
+                //Clear dead nodes and stop the ressurect timer
+                this.ressurectTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                this.deadNodes.Clear();
+
                 IMemcachedNode[] newNodes = this.CreateNodes(newEndpoints);
 
                 Interlocked.Exchange(ref this.endpoints, newEndpoints);
@@ -101,7 +113,7 @@ namespace NHibernate.Caches.Elasticache
             IPEndPoint[] newEndpoints;
             using (var client = new AmazonElastiCacheClient(this.regionEndpoint))
             {
-                var request = new Amazon.ElastiCache.Model.DescribeCacheClustersRequest().WithCacheClusterId(this.clusterId).WithShowCacheNodeInfo(true);
+                var request = new DescribeCacheClustersRequest().WithCacheClusterId(this.clusterId).WithShowCacheNodeInfo(true);
                 var result = client.DescribeCacheClusters(request).DescribeCacheClustersResult;
 
                 var cluster = result.CacheClusters.FirstOrDefault();
@@ -135,8 +147,38 @@ namespace NHibernate.Caches.Elasticache
 				var fail = this.nodeFailed;
 				if (fail != null)
 					fail(node);
+
+                if (!this.deadNodes.Contains(node))
+                    this.deadNodes.Enqueue(node);
+
+                if (!this.isRessurectRunning)
+                {
+                    this.isRessurectRunning = true;
+                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), Timeout.InfiniteTimeSpan);
+                }
 			}
 		}
+
+        private void RessurectNodes(object state)
+        {
+            lock (this.DeadSync)
+            {
+                if (this.isDisposed) return;
+
+                var deadNodesCount = this.deadNodes.Count;
+                for (int i = 0; i < deadNodesCount; i++)
+                {
+                    var node = this.deadNodes.Dequeue();
+                    if (!node.Ping())
+                        this.deadNodes.Enqueue(node);
+                }
+
+                if (this.deadNodes.Count > 0)
+                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), Timeout.InfiniteTimeSpan);
+                else
+                    this.isRessurectRunning = false;
+            }
+        }
 
 		#region [ IServerPool                  ]
 
@@ -163,7 +205,7 @@ namespace NHibernate.Caches.Elasticache
             this.nodeLocator.Initialize(this.allNodes);
             this.CheckNodes();
 
-            this.checkNodesTimer = new System.Threading.Timer(CheckNodesCallback, null, this.interval, this.interval);
+            this.checkNodesTimer.Change(this.interval, this.interval);
 		}
 
 		event Action<IMemcachedNode> IServerPool.NodeFailed
@@ -199,12 +241,13 @@ namespace NHibernate.Caches.Elasticache
 					catch (Exception) { }
 
 				// stop the timer
-				if (this.checkNodesTimer != null)
-					using (this.checkNodesTimer)
-						this.checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+				using (this.checkNodesTimer)
+					this.checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+
+                using (this.ressurectTimer)
+                    this.ressurectTimer.Change(Timeout.Infinite, Timeout.Infinite);
 
 				this.allNodes = null;
-				this.checkNodesTimer = null;
 			}
 		}
 
