@@ -97,8 +97,7 @@ namespace NHibernate.Caches.Elasticache
                 Interlocked.Exchange(ref this.endpoints, newEndpoints);
                 this.nodeLocator.Initialize(newNodes);
 
-                var oldNodes = this.allNodes;
-                Interlocked.Exchange(ref this.allNodes, newNodes);
+                var oldNodes = Interlocked.Exchange(ref this.allNodes, newNodes);
 
                 foreach (var node in oldNodes)
                     node.Dispose();
