@@ -1,12 +1,12 @@
-﻿using Enyim.Caching;
+﻿using System.Collections.Generic;
+using System.Configuration;
+using System.Net;
+using System.Text;
+using Enyim.Caching;
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Results.Factories;
 using NHibernate.Cache;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Net;
-using System.Text;
 
 namespace NHibernate.Caches.Elasticache
 {

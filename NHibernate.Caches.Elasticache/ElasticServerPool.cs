@@ -1,13 +1,13 @@
-﻿using Amazon;
-using Amazon.ElastiCache;
-using Amazon.ElastiCache.Model;
-using Enyim.Caching.Configuration;
-using Enyim.Caching.Memcached;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading;
+using Amazon;
+using Amazon.ElastiCache;
+using Amazon.ElastiCache.Model;
+using Enyim.Caching.Configuration;
+using Enyim.Caching.Memcached;
 
 namespace NHibernate.Caches.Elasticache
 {
@@ -154,7 +154,7 @@ namespace NHibernate.Caches.Elasticache
                 if (!this.isRessurectRunning)
                 {
                     this.isRessurectRunning = true;
-                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), Timeout.InfiniteTimeSpan);
+                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(-1));
                 }
 			}
 		}
@@ -174,7 +174,7 @@ namespace NHibernate.Caches.Elasticache
                 }
 
                 if (this.deadNodes.Count > 0)
-                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), Timeout.InfiniteTimeSpan);
+                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(-1));
                 else
                     this.isRessurectRunning = false;
             }

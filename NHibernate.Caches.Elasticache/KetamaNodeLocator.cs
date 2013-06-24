@@ -1,11 +1,11 @@
-﻿using Enyim.Caching;
-using Enyim.Caching.Memcached;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using Enyim.Caching;
+using Enyim.Caching.Memcached;
 
 namespace NHibernate.Caches.Elasticache
 {

@@ -1,7 +1,7 @@
-﻿using Enyim.Caching.Configuration;
+﻿using System.Net;
+using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Protocol.Binary;
-using System.Net;
 
 namespace NHibernate.Caches.Elasticache
 {

@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>NHibernate.Caches.Elasticache</id>
-        <version>0.0.6</version>
+        <version>0.0.7</version>
         <authors>hcampos</authors>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>Cache provider for NHibernate using a custom Enyim Memcached client and the provider found at http://sourceforge.net/projects/nhcontrib
