@@ -17,10 +17,11 @@ namespace NHibernate.Caches.Elasticache
     public class MemCacheProvider : ICacheProvider
     {
         private static readonly IInternalLogger log;
-        private static MemcachedClient clientInstance;
         private static readonly IMemcachedClientConfiguration config;
         private static readonly IElasticConfiguration elasticConfig;
-        private static readonly object syncObject = new object();
+
+        private MemcachedClient clientInstance;
+        private readonly object syncObject = new object();
 
         static MemCacheProvider()
         {
