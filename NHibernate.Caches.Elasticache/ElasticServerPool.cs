@@ -113,8 +113,12 @@ namespace NHibernate.Caches.Elasticache
             IPEndPoint[] newEndpoints;
             using (var client = new AmazonElastiCacheClient(this.regionEndpoint))
             {
-                var request = new DescribeCacheClustersRequest().WithCacheClusterId(this.clusterId).WithShowCacheNodeInfo(true);
-                var result = client.DescribeCacheClusters(request).DescribeCacheClustersResult;
+                var request = new DescribeCacheClustersRequest() 
+                { 
+                    CacheClusterId = this.clusterId,
+                    ShowCacheNodeInfo = true
+                };
+                var result = client.DescribeCacheClusters(request);
 
                 var cluster = result.CacheClusters.FirstOrDefault();
                 if (cluster == null)
