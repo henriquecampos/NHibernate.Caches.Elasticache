@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>NHibernate.Caches.Elasticache</id>
-        <version>0.0.12</version>
+        <version>0.0.13</version>
         <authors>hcampos</authors>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>Cache provider for NHibernate using a custom Enyim Memcached client and the provider found at http://sourceforge.net/projects/nhcontrib
@@ -13,8 +13,8 @@ Config Sample:
   &lt;/configSections&gt;
   &lt;elastiCache endpoint="sa-east-1" interval="00:10:00" cluster="cache-homolog" /&gt;</description>
         <dependencies>
-            <dependency id="NHibernate" version="3.3.3.4000" />
-            <dependency id="AWSSDK" version="2.0.1.0" />
+            <dependency id="NHibernate" version="3.3.3.4001" />
+            <dependency id="AWSSDK" version="2.0.13.1" />
             <dependency id="EnyimMemcached" version="2.12" />
         </dependencies>
     </metadata>
