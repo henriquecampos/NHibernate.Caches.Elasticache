@@ -1,5 +1,5 @@
-﻿using System;
-using Amazon;
+﻿using Amazon;
+using System;
 
 namespace NHibernate.Caches.Elasticache
 {

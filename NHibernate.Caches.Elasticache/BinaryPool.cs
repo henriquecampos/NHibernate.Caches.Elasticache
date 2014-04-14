@@ -1,7 +1,7 @@
-﻿using System.Net;
-using Enyim.Caching.Configuration;
+﻿using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Protocol.Binary;
+using System.Net;
 
 namespace NHibernate.Caches.Elasticache
 {
@@ -10,19 +10,19 @@ namespace NHibernate.Caches.Elasticache
     /// </summary>
     public class BinaryPool : ElasticServerPool
     {
-        ISaslAuthenticationProvider authenticationProvider;
-        IMemcachedClientConfiguration configuration;
+        readonly ISaslAuthenticationProvider _authenticationProvider;
+        readonly IMemcachedClientConfiguration _configuration;
 
         public BinaryPool(IMemcachedClientConfiguration configuration, IElasticConfiguration elasticConfiguration)
             : base(configuration, elasticConfiguration, new BinaryOperationFactory())
         {
-            this.authenticationProvider = GetProvider(configuration);
-            this.configuration = configuration;
+            _authenticationProvider = GetProvider(configuration);
+            _configuration = configuration;
         }
 
         protected override IMemcachedNode CreateNode(IPEndPoint endpoint)
         {
-            return new BinaryNode(endpoint, this.configuration.SocketPool, this.authenticationProvider);
+            return new BinaryNode(endpoint, _configuration.SocketPool, _authenticationProvider);
         }
 
         private static ISaslAuthenticationProvider GetProvider(IMemcachedClientConfiguration configuration)

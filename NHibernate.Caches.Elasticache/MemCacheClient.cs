@@ -1,32 +1,31 @@
-﻿using System;
+﻿using Enyim.Caching;
+using Enyim.Caching.Memcached;
+using NHibernate.Cache;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
-using Enyim.Caching;
-using Enyim.Caching.Memcached;
-using NHibernate.Cache;
-using Environment = NHibernate.Cfg.Environment;
 
 namespace NHibernate.Caches.Elasticache
 {
     public class MemCacheClient : ICache
     {
-        private static readonly IInternalLogger log;
+        private static readonly IInternalLogger Log;
         [ThreadStatic]
-        private static HashAlgorithm hasher;
+        private static HashAlgorithm _hasher;
 
         [ThreadStatic]
-        private static MD5 md5;
-        private readonly MemcachedClient client;
-        private readonly int expiry;
+        private static MD5 _md5;
+        private readonly MemcachedClient _client;
+        private readonly int _expiry;
 
-        private readonly string region;
-        private readonly string regionPrefix = "";
+        private readonly string _region;
+        private readonly string _regionPrefix = "";
 
         static MemCacheClient()
         {
-            log = LoggerProvider.LoggerFor(typeof(MemCacheClient));
+            Log = LoggerProvider.LoggerFor(typeof(MemCacheClient));
         }
 
         public MemCacheClient()
@@ -46,37 +45,37 @@ namespace NHibernate.Caches.Elasticache
 
         public MemCacheClient(string regionName, IDictionary<string, string> properties, MemcachedClient memcachedClient)
         {
-            region = regionName;
+            _region = regionName;
 
-            client = memcachedClient;
+            _client = memcachedClient;
 
-            expiry = 300;
+            _expiry = 300;
 
             if (properties != null)
             {
                 string expirationString = GetExpirationString(properties);
                 if (expirationString != null)
                 {
-                    expiry = Convert.ToInt32(expirationString);
-                    if (log.IsDebugEnabled)
+                    _expiry = Convert.ToInt32(expirationString);
+                    if (Log.IsDebugEnabled)
                     {
-                        log.DebugFormat("using expiration of {0} seconds", expiry);
+                        Log.DebugFormat("using expiration of {0} seconds", _expiry);
                     }
                 }
 
                 if (properties.ContainsKey("regionPrefix"))
                 {
-                    regionPrefix = properties["regionPrefix"];
-                    if (log.IsDebugEnabled)
+                    _regionPrefix = properties["regionPrefix"];
+                    if (Log.IsDebugEnabled)
                     {
-                        log.DebugFormat("new regionPrefix :{0}", regionPrefix);
+                        Log.DebugFormat("new regionPrefix :{0}", _regionPrefix);
                     }
                 }
                 else
                 {
-                    if (log.IsDebugEnabled)
+                    if (Log.IsDebugEnabled)
                     {
-                        log.Debug("no regionPrefix value given, using defaults");
+                        Log.Debug("no regionPrefix value given, using defaults");
                     }
                 }
             }
@@ -84,26 +83,12 @@ namespace NHibernate.Caches.Elasticache
 
         private static HashAlgorithm Hasher
         {
-            get
-            {
-                if (hasher == null)
-                {
-                    hasher = HashAlgorithm.Create();
-                }
-                return hasher;
-            }
+            get { return _hasher ?? (_hasher = HashAlgorithm.Create()); }
         }
 
         private static MD5 Md5
         {
-            get
-            {
-                if (md5 == null)
-                {
-                    md5 = MD5.Create();
-                }
-                return md5;
-            }
+            get { return _md5 ?? (_md5 = MD5.Create()); }
         }
 
         #region ICache Members
@@ -114,11 +99,11 @@ namespace NHibernate.Caches.Elasticache
             {
                 return null;
             }
-            if (log.IsDebugEnabled)
+            if (Log.IsDebugEnabled)
             {
-                log.DebugFormat("fetching object {0} from the cache", key);
+                Log.DebugFormat("fetching object {0} from the cache", key);
             }
-            object maybeObj = client.Get(KeyAsString(key));
+            object maybeObj = _client.Get(KeyAsString(key));
             if (maybeObj == null)
             {
                 return null;
@@ -146,19 +131,19 @@ namespace NHibernate.Caches.Elasticache
                 throw new ArgumentNullException("value", "null value not allowed");
             }
 
-            if (log.IsDebugEnabled)
+            if (Log.IsDebugEnabled)
             {
-                log.DebugFormat("setting value for item {0}", key);
+                Log.DebugFormat("setting value for item {0}", key);
             }
-            bool returnOk = client.Store(
+            bool returnOk = _client.Store(
                 StoreMode.Set, KeyAsString(key),
                 new DictionaryEntry(GetAlternateKeyHash(key), value),
-                TimeSpan.FromSeconds(expiry));
+                TimeSpan.FromSeconds(_expiry));
             if (!returnOk)
             {
-                if (log.IsWarnEnabled)
+                if (Log.IsWarnEnabled)
                 {
-                    log.WarnFormat("could not save: {0} => {1}", key, value);
+                    Log.WarnFormat("could not save: {0} => {1}", key, value);
                 }
             }
         }
@@ -169,16 +154,16 @@ namespace NHibernate.Caches.Elasticache
             {
                 throw new ArgumentNullException("key");
             }
-            if (log.IsDebugEnabled)
+            if (Log.IsDebugEnabled)
             {
-                log.DebugFormat("removing item {0}", key);
+                Log.DebugFormat("removing item {0}", key);
             }
-            client.Remove(KeyAsString(key));
+            _client.Remove(KeyAsString(key));
         }
 
         public void Clear()
         {
-            client.FlushAll();
+            _client.FlushAll();
         }
 
         public void Destroy()
@@ -208,7 +193,7 @@ namespace NHibernate.Caches.Elasticache
 
         public string RegionName
         {
-            get { return region; }
+            get { return _region; }
         }
 
         #endregion
@@ -218,7 +203,7 @@ namespace NHibernate.Caches.Elasticache
             string result;
             if (!props.TryGetValue("expiration", out result))
             {
-                props.TryGetValue(Environment.CacheDefaultExpiration, out result);
+                props.TryGetValue(Cfg.Environment.CacheDefaultExpiration, out result);
             }
             return result;
         }
@@ -244,7 +229,7 @@ namespace NHibernate.Caches.Elasticache
         /// <returns></returns>
         private string FullKeyAsString(object key)
         {
-            return string.Format("{0}{1}@{2}", regionPrefix, region, (key == null ? string.Empty : key.ToString()));
+            return string.Format("{0}{1}@{2}", _regionPrefix, _region, (key == null ? string.Empty : key.ToString()));
         }
 
         /// <summary>

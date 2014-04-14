@@ -1,44 +1,36 @@
-﻿using System.Collections.Generic;
-using System.Configuration;
-using System.Net;
-using System.Text;
-using Enyim.Caching;
+﻿using Enyim.Caching;
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Results.Factories;
 using NHibernate.Cache;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Net;
 
 namespace NHibernate.Caches.Elasticache
 {
-    /// <summary>
-    /// Cache provider using the .NET client (http://github.com/enyim/EnyimMemcached)
-    /// for memcached, which is located at http://memcached.org/
-    /// </summary>
     public class MemCacheProvider : ICacheProvider
     {
-        private static readonly IInternalLogger log;
-        private static readonly IMemcachedClientConfiguration config;
-        private static readonly IElasticConfiguration elasticConfig;
+        private static readonly IMemcachedClientConfiguration Config;
+        private static readonly IElasticConfiguration ElasticConfig;
 
-        private MemcachedClient clientInstance;
-        private readonly object syncObject = new object();
+        private MemcachedClient _clientInstance;
+        private readonly object _syncObject = new object();
 
         static MemCacheProvider()
         {
-            log = LoggerProvider.LoggerFor(typeof(MemCacheProvider));
-            config = ConfigurationManager.GetSection("enyim.com/memcached") as IMemcachedClientConfiguration;
-            elasticConfig = ConfigurationManager.GetSection("elastiCache") as IElasticConfiguration;
+            Config = ConfigurationManager.GetSection("enyim.com/memcached") as IMemcachedClientConfiguration;
+            ElasticConfig = ConfigurationManager.GetSection("elastiCache") as IElasticConfiguration;
 
-            if (config == null)
+            if (Config == null)
             {
-                log.Info("enyim.com/memcached configuration section not found, using default configuration (127.0.0.1:11211).");
-                config = new MemcachedClientConfiguration();
-                config.Servers.Add(new IPEndPoint(IPAddress.Loopback, 11211));
+                Config = new MemcachedClientConfiguration();
+                Config.Servers.Add(new IPEndPoint(IPAddress.Loopback, 11211));
             }
 
-            if (elasticConfig == null)
+            if (ElasticConfig == null)
             {
-                elasticConfig = new ElasticConfigurationSection();
+                ElasticConfig = new ElasticConfigurationSection();
             }
         }
 
@@ -47,27 +39,12 @@ namespace NHibernate.Caches.Elasticache
         public ICache BuildCache(string regionName, IDictionary<string, string> properties)
         {
             if (regionName == null)
-            {
                 regionName = "";
-            }
+
             if (properties == null)
-            {
                 properties = new Dictionary<string, string>();
-            }
-            if (log.IsDebugEnabled)
-            {
-                var sb = new StringBuilder();
-                foreach (var pair in properties)
-                {
-                    sb.Append("name=");
-                    sb.Append(pair.Key);
-                    sb.Append("&value=");
-                    sb.Append(pair.Value);
-                    sb.Append(";");
-                }
-                log.Debug("building cache with region: " + regionName + ", properties: " + sb);
-            }
-            return new MemCacheClient(regionName, properties, clientInstance);
+
+            return new MemCacheClient(regionName, properties, _clientInstance);
         }
 
         public long NextTimestamp()
@@ -79,35 +56,37 @@ namespace NHibernate.Caches.Elasticache
         {
             // Needs to lock staticly because the pool and the internal maintenance thread
             // are both static, and I want them syncs between starts and stops.
-            lock (syncObject)
+            lock (_syncObject)
             {
-                if (config == null)
-                {
-                    throw new ConfigurationErrorsException("Configuration for enyim.com/memcached not found");
-                }
+                if (_clientInstance != null) return;
 
-                if (clientInstance == null)
+                if (Config == null)
+                    throw new ConfigurationErrorsException("Configuration for enyim.com/memcached not found");
+
+                if (ElasticConfig == null)
+                    throw new ConfigurationErrorsException("Configuration for elastiCache not found");
+
+                var pool = new BinaryPool(Config, ElasticConfig);
+                IMemcachedKeyTransformer keyTransformer = Config.CreateKeyTransformer() ?? new DefaultKeyTransformer();
+                ITranscoder transcoder = Config.CreateTranscoder() ?? new DefaultTranscoder();
+                IPerformanceMonitor performanceMonitor = Config.CreatePerformanceMonitor();
+                _clientInstance = new MemcachedClient(pool, keyTransformer, transcoder, performanceMonitor)
                 {
-                    var pool = new BinaryPool(config, elasticConfig);
-                    IMemcachedKeyTransformer keyTransformer = config.CreateKeyTransformer() ?? new DefaultKeyTransformer();
-                    ITranscoder transcoder = config.CreateTranscoder() ?? new DefaultTranscoder();
-                    IPerformanceMonitor performanceMonitor = config.CreatePerformanceMonitor();
-                    clientInstance = new MemcachedClient(pool, keyTransformer, transcoder, performanceMonitor);
-                    clientInstance.StoreOperationResultFactory = new DefaultStoreOperationResultFactory();
-                    clientInstance.GetOperationResultFactory = new DefaultGetOperationResultFactory();
-                    clientInstance.MutateOperationResultFactory = new DefaultMutateOperationResultFactory();
-                    clientInstance.ConcatOperationResultFactory = new DefaultConcatOperationResultFactory();
-                    clientInstance.RemoveOperationResultFactory = new DefaultRemoveOperationResultFactory();
-                }
+                    StoreOperationResultFactory = new DefaultStoreOperationResultFactory(),
+                    GetOperationResultFactory = new DefaultGetOperationResultFactory(),
+                    MutateOperationResultFactory = new DefaultMutateOperationResultFactory(),
+                    ConcatOperationResultFactory = new DefaultConcatOperationResultFactory(),
+                    RemoveOperationResultFactory = new DefaultRemoveOperationResultFactory()
+                };
             }
         }
 
         public void Stop()
         {
-            lock (syncObject)
+            lock (_syncObject)
             {
-                clientInstance.Dispose();
-                clientInstance = null;
+                _clientInstance.Dispose();
+                _clientInstance = null;
             }
         }
 

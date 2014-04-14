@@ -1,265 +1,284 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Threading;
-using Amazon;
+﻿using Amazon;
 using Amazon.ElastiCache;
 using Amazon.ElastiCache.Model;
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Threading;
 
 namespace NHibernate.Caches.Elasticache
 {
-    public class ElasticServerPool : IServerPool, IDisposable
+    public class ElasticServerPool : IServerPool
     {
-        private IPEndPoint[] endpoints;
-        private IMemcachedNode[] allNodes;
+        private readonly Timer _checkNodesTimer;
+        private readonly string _clusterId;
+        private readonly IMemcachedClientConfiguration _configuration;
+        private readonly Queue<IMemcachedNode> _deadNodes;
+        private readonly object _deadSync = new Object();
+        private readonly IOperationFactory _factory;
+        private readonly TimeSpan _interval;
+        private readonly RegionEndpoint _regionEndpoint;
+        private readonly Timer _ressurectTimer;
+        private IMemcachedNode[] _allNodes;
+        private IPEndPoint[] _endpoints;
+        private bool _isDisposed;
+        private bool _isRessurectRunning;
+        private IMemcachedNodeLocator _nodeLocator;
 
-        private bool isRessurectRunning;
-        private readonly Queue<IMemcachedNode> deadNodes;
-        private readonly Timer ressurectTimer;
-
-		private IMemcachedClientConfiguration configuration;
-        private IOperationFactory factory;
-		private IMemcachedNodeLocator nodeLocator;
-
-        private RegionEndpoint regionEndpoint;
-        private TimeSpan interval;
-        private string clusterId;
-
-		private object DeadSync = new Object();
-        private bool isDisposed;
-        private readonly Timer checkNodesTimer;
-		private event Action<IMemcachedNode> nodeFailed;
-
-		public ElasticServerPool(IMemcachedClientConfiguration configuration, IElasticConfiguration elasticConfig, IOperationFactory opFactory)
-		{
-			if (configuration == null) throw new ArgumentNullException("socketConfig");
+        public ElasticServerPool(IMemcachedClientConfiguration configuration, IElasticConfiguration elasticConfig, IOperationFactory opFactory)
+        {
+            if (configuration == null) throw new ArgumentNullException("configuration");
             if (elasticConfig == null) throw new ArgumentNullException("elasticConfig");
-			if (opFactory == null) throw new ArgumentNullException("opFactory");
-            
-			this.configuration = configuration;
-            this.regionEndpoint = elasticConfig.CreateRegionEndpoint();
-            this.interval = elasticConfig.CreateInterval();
-            this.clusterId = elasticConfig.ClusterId;
-			this.factory = opFactory;
+            if (opFactory == null) throw new ArgumentNullException("opFactory");
 
-            this.ressurectTimer = new Timer(RessurectNodes, null, Timeout.Infinite, Timeout.Infinite);
-            this.checkNodesTimer = new Timer(CheckNodesCallback, null, Timeout.Infinite, Timeout.Infinite);
-            this.deadNodes = new Queue<IMemcachedNode>();
-		}
+            _configuration = configuration;
+            _regionEndpoint = elasticConfig.CreateRegionEndpoint();
+            _interval = elasticConfig.CreateInterval();
+            _clusterId = elasticConfig.ClusterId;
+            _factory = opFactory;
+
+            _ressurectTimer = new Timer(RessurectNodes, null, Timeout.Infinite, Timeout.Infinite);
+            _checkNodesTimer = new Timer(CheckNodesCallback, null, Timeout.Infinite, Timeout.Infinite);
+            _deadNodes = new Queue<IMemcachedNode>();
+        }
 
         ~ElasticServerPool()
-		{
-			try { ((IDisposable)this).Dispose(); }
-			catch { }
-		}
+        {
+            try
+            {
+                ((IDisposable)this).Dispose();
+            }
+            catch { }
+        }
 
-		protected virtual IMemcachedNode CreateNode(IPEndPoint endpoint)
-		{
-			return new MemcachedNode(endpoint, this.configuration.SocketPool);
-		}
+        protected virtual IMemcachedNode CreateNode(IPEndPoint endpoint)
+        {
+            return new MemcachedNode(endpoint, _configuration.SocketPool);
+        }
 
         private IMemcachedNode[] CreateNodes(IPEndPoint[] endpoints)
         {
-            IMemcachedNode[] newNodes = new IMemcachedNode[endpoints.Length];
+            var newNodes = new IMemcachedNode[endpoints.Length];
             for (int i = 0; i < endpoints.Length; i++)
             {
-                var node = this.CreateNode(endpoints[i]);
-                node.Failed += this.NodeFail;
+                IMemcachedNode node = CreateNode(endpoints[i]);
+                node.Failed += NodeFail;
                 newNodes[i] = node;
             }
             return newNodes;
         }
 
-		private void CheckNodesCallback(object state)
-		{
-            this.CheckNodes();	
-		}
+        private void CheckNodesCallback(object state)
+        {
+            CheckNodes();
+        }
 
         private void CheckNodes()
         {
-            lock (this.DeadSync)
+            lock (_deadSync)
             {
-                if (this.isDisposed) return;
+                if (_isDisposed) return;
 
                 IPEndPoint[] newEndpoints = GetCurrentEndpoints();
 
-                if (this.endpoints.SequenceEqual(newEndpoints)) return;
+                if (_endpoints.SequenceEqual(newEndpoints))
+                {
+                    return;
+                }
 
                 //Clear dead nodes and stop the ressurect timer
-                this.ressurectTimer.Change(Timeout.Infinite, Timeout.Infinite);
-                this.deadNodes.Clear();
+                _ressurectTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                _isRessurectRunning = false;
+                _deadNodes.Clear();
 
-                IMemcachedNode[] newNodes = this.CreateNodes(newEndpoints);
+                IMemcachedNode[] newNodes = CreateNodes(newEndpoints);
 
-                Interlocked.Exchange(ref this.endpoints, newEndpoints);
-                this.nodeLocator.Initialize(newNodes);
+                Interlocked.Exchange(ref _endpoints, newEndpoints);
+                _nodeLocator.Initialize(newNodes);
 
-                var oldNodes = Interlocked.Exchange(ref this.allNodes, newNodes);
+                IMemcachedNode[] oldNodes = Interlocked.Exchange(ref _allNodes, newNodes);
 
-                foreach (var node in oldNodes)
-                    node.Dispose();
-
-                oldNodes = null;
+                foreach (IMemcachedNode node in oldNodes)
+                {
+                    try { node.Dispose(); }
+                    catch { }
+                }
             }
         }
 
         private IPEndPoint[] GetCurrentEndpoints()
         {
-            if (String.IsNullOrEmpty(this.clusterId)) return new IPEndPoint[0];
+            if (String.IsNullOrEmpty(_clusterId))
+            {
+                _checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                return new IPEndPoint[0];
+            }
 
             IPEndPoint[] newEndpoints;
-            using (var client = new AmazonElastiCacheClient(this.regionEndpoint))
+            using (var client = new AmazonElastiCacheClient(_regionEndpoint))
             {
-                var request = new DescribeCacheClustersRequest() 
-                { 
-                    CacheClusterId = this.clusterId,
+                var request = new DescribeCacheClustersRequest
+                {
+                    CacheClusterId = _clusterId,
                     ShowCacheNodeInfo = true
                 };
-                var result = client.DescribeCacheClusters(request);
 
-                var cluster = result.CacheClusters.FirstOrDefault();
-                if (cluster == null)
+                DescribeCacheClustersResponse response = client.DescribeCacheClusters(request);
+
+                if (!response.CacheClusters.Any())
                 {
                     //Cant find cluster id, disabling callback
-                    this.checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                    _checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
                     return new IPEndPoint[0];
                 }
 
-                newEndpoints = new IPEndPoint[cluster.CacheNodes.Count];
+                int nodeCount = response.CacheClusters.Sum(x => x.CacheNodes.Count);
+                newEndpoints = new IPEndPoint[nodeCount];
 
-                var cacheNodes = cluster.CacheNodes;
-                for (int i = 0; i < cacheNodes.Count; i++)
+                int i = 0;
+                foreach (CacheCluster cluster in response.CacheClusters)
                 {
-                    var nodeEndpoint = cacheNodes[i].Endpoint;
-                    newEndpoints[i] = ConfigurationHelper.ResolveToEndPoint(nodeEndpoint.Address, nodeEndpoint.Port);
+                    foreach (CacheNode node in cluster.CacheNodes)
+                    {
+                        Endpoint nodeEndpoint = node.Endpoint;
+                        IPEndPoint ipEndPoint = ConfigurationHelper.ResolveToEndPoint(nodeEndpoint.Address, nodeEndpoint.Port);
+                        newEndpoints[i++] = ipEndPoint;
+                    }
                 }
             }
 
             return newEndpoints;
         }
 
-		private void NodeFail(IMemcachedNode node)
-		{
-			lock (this.DeadSync)
-			{
-				if (this.isDisposed) return;
-
-				// bubble up the fail event to the client
-				var fail = this.nodeFailed;
-				if (fail != null)
-					fail(node);
-
-                if (!this.deadNodes.Contains(node))
-                    this.deadNodes.Enqueue(node);
-
-                if (!this.isRessurectRunning)
-                {
-                    this.isRessurectRunning = true;
-                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(-1));
-                }
-			}
-		}
-
-        private void RessurectNodes(object state)
+        private void NodeFail(IMemcachedNode node)
         {
-            lock (this.DeadSync)
+            lock (_deadSync)
             {
-                if (this.isDisposed) return;
+                if (_isDisposed) return;
 
-                var deadNodesCount = this.deadNodes.Count;
-                for (int i = 0; i < deadNodesCount; i++)
-                {
-                    var node = this.deadNodes.Dequeue();
-                    if (!node.Ping())
-                        this.deadNodes.Enqueue(node);
-                }
+                // bubble up the fail event to the client
+                Action<IMemcachedNode> handler = InnerNodeFailed;
+                if (handler != null) handler(node);
 
-                if (this.deadNodes.Count > 0)
-                    this.ressurectTimer.Change(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(-1));
-                else
-                    this.isRessurectRunning = false;
+                if (!_deadNodes.Contains(node))
+                    _deadNodes.Enqueue(node);
+
+                if (_isRessurectRunning) return;
+
+                _isRessurectRunning = true;
+                _ressurectTimer.Change(TimeSpan.FromSeconds(30), TimeSpan.FromMilliseconds(-1));
             }
         }
 
-		#region [ IServerPool                  ]
+        private void RessurectNodes(object state)
+        {
+            lock (_deadSync)
+            {
+                if (_isDisposed) return;
 
-		IMemcachedNode IServerPool.Locate(string key)
-		{
-			return this.nodeLocator.Locate(key);
-		}
+                int deadNodesCount = _deadNodes.Count;
+                for (int i = 0; i < deadNodesCount; i++)
+                {
+                    IMemcachedNode node = _deadNodes.Dequeue();
+                    if (!node.Ping())
+                        _deadNodes.Enqueue(node);
+                }
 
-		IOperationFactory IServerPool.OperationFactory
-		{
-			get { return this.factory; }
-		}
+                if (_deadNodes.Count > 0)
+                {
+                    _ressurectTimer.Change(TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(-1));
+                }
+                else
+                    _isRessurectRunning = false;
+            }
+        }
 
-		IEnumerable<IMemcachedNode> IServerPool.GetWorkingNodes()
-		{
-			return this.nodeLocator.GetWorkingNodes();
-		}
+        #region [ IServerPool                  ]
 
-		void IServerPool.Start()
-		{
-            this.endpoints = new IPEndPoint[0];
-            this.allNodes = new IMemcachedNode[0];
-            this.nodeLocator = new KetamaNodeLocator();
-            this.nodeLocator.Initialize(this.allNodes);
-            this.CheckNodes();
+        IMemcachedNode IServerPool.Locate(string key)
+        {
+            return _nodeLocator.Locate(key);
+        }
 
-            this.checkNodesTimer.Change(this.interval, this.interval);
-		}
+        IOperationFactory IServerPool.OperationFactory
+        {
+            get { return _factory; }
+        }
 
-		event Action<IMemcachedNode> IServerPool.NodeFailed
-		{
-			add { this.nodeFailed += value; }
-			remove { this.nodeFailed -= value; }
-		}
+        IEnumerable<IMemcachedNode> IServerPool.GetWorkingNodes()
+        {
+            return _nodeLocator.GetWorkingNodes();
+        }
 
-		#endregion
-		#region [ IDisposable                  ]
+        void IServerPool.Start()
+        {
+            _endpoints = new IPEndPoint[0];
+            _allNodes = new IMemcachedNode[0];
+            _nodeLocator = new KetamaNodeLocator();
+            _nodeLocator.Initialize(_allNodes);
+            CheckNodes();
 
-		void IDisposable.Dispose()
-		{
-			GC.SuppressFinalize(this);
+            _checkNodesTimer.Change(_interval, _interval);
+        }
 
-			lock (this.DeadSync)
-			{
-				if (this.isDisposed) return;
+        private event Action<IMemcachedNode> InnerNodeFailed;
+        event Action<IMemcachedNode> IServerPool.NodeFailed
+        {
+            add { InnerNodeFailed += value; }
+            remove { InnerNodeFailed -= value; }
+        }
 
-				this.isDisposed = true;
+        #endregion
 
-				// dispose the locator first, maybe it wants to access 
-				// the nodes one last time
-				var nd = this.nodeLocator as IDisposable;
-				if (nd != null)
-					try { nd.Dispose(); }
-					catch (Exception) { }
+        #region [ IDisposable                  ]
 
-				this.nodeLocator = null;
+        void IDisposable.Dispose()
+        {
+            GC.SuppressFinalize(this);
 
-				for (var i = 0; i < this.allNodes.Length; i++)
-					try { this.allNodes[i].Dispose(); }
-					catch (Exception) { }
+            lock (_deadSync)
+            {
+                if (_isDisposed) return;
 
-				// stop the timer
-				using (this.checkNodesTimer)
-					this.checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                _isDisposed = true;
 
-                using (this.ressurectTimer)
-                    this.ressurectTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                // dispose the locator first, maybe it wants to access 
+                // the nodes one last time
+                var nd = _nodeLocator as IDisposable;
+                if (nd != null)
+                {
+                    try { nd.Dispose(); }
+                    catch { }
+                }
 
-				this.allNodes = null;
-			}
-		}
+                _nodeLocator = null;
 
-		#endregion
+                foreach (IMemcachedNode node in _allNodes)
+                {
+                    try { node.Dispose(); }
+                    catch { }
+                }
+
+                // stop the timer
+                using (_checkNodesTimer)
+                    _checkNodesTimer.Change(Timeout.Infinite, Timeout.Infinite);
+
+                using (_ressurectTimer)
+                    _ressurectTimer.Change(Timeout.Infinite, Timeout.Infinite);
+
+                _allNodes = null;
+            }
+        }
+
+        #endregion
     }
 }
 
 #region [ License information          ]
+
 /* ************************************************************
  * 
  *    Copyright (c) 2010 Attila Kiskó, enyim.com
@@ -277,4 +296,5 @@ namespace NHibernate.Caches.Elasticache
  *    limitations under the License.
  *    
  * ************************************************************/
+
 #endregion

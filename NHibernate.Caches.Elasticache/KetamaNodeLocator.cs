@@ -1,11 +1,11 @@
-﻿using System;
+﻿using Enyim.Caching;
+using Enyim.Caching.Memcached;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-using Enyim.Caching;
-using Enyim.Caching.Memcached;
 
 namespace NHibernate.Caches.Elasticache
 {
@@ -15,8 +15,8 @@ namespace NHibernate.Caches.Elasticache
     public sealed class KetamaNodeLocator : IMemcachedNodeLocator
     {
         private const int ServerAddressMutations = 160;
-        private readonly HashAlgorithm hashAlgorithm = MD5.Create();
-        private LookupData lookupData;
+        private readonly HashAlgorithm _hashAlgorithm = MD5.Create();
+        private LookupData _lookupData;
 
         void IMemcachedNodeLocator.Initialize(IList<IMemcachedNode> nodes)
         {
@@ -25,18 +25,16 @@ namespace NHibernate.Caches.Elasticache
             //if (this.lookupData != null) return;
 
             // sizeof(uint)
-            const int KeyLength = 4;
+            const int keyLength = 4;
 
-            int PartCount = hashAlgorithm.HashSize / 8 / KeyLength; // HashSize is in bits, uint is 4 bytes long
-            if (PartCount < 1) throw new ArgumentOutOfRangeException("The hash algorithm must provide at least 32 bits long hashes");
+            int partCount = _hashAlgorithm.HashSize / 8 / keyLength; // HashSize is in bits, uint is 4 bytes long
+            if (partCount < 1) throw new ArgumentOutOfRangeException("nodes");
 
-            var keys = new List<uint>(nodes.Count * KetamaNodeLocator.ServerAddressMutations);
+            var keys = new List<uint>(nodes.Count * ServerAddressMutations);
             var keyToServer = new Dictionary<uint, IMemcachedNode>(keys.Count, new UIntEqualityComparer());
 
-            for (int nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++)
+            foreach (var currentNode in nodes)
             {
-                var currentNode = nodes[nodeIndex];
-
                 // every server is registered numberOfKeys times
                 // using UInt32s generated from the different parts of the hash
                 // i.e. hash is 64 bit:
@@ -44,17 +42,17 @@ namespace NHibernate.Caches.Elasticache
                 // server will be stored with keys 0x07060504 & 0x03020100
                 string address = currentNode.EndPoint.ToString();
 
-                for (int mutation = 0; mutation < ServerAddressMutations / PartCount; mutation++)
+                for (int mutation = 0; mutation < ServerAddressMutations / partCount; mutation++)
                 {
-                    byte[] data = hashAlgorithm.ComputeHash(Encoding.ASCII.GetBytes(address + "-" + mutation));
+                    byte[] data = _hashAlgorithm.ComputeHash(Encoding.ASCII.GetBytes(address + "-" + mutation));
 
-                    for (int p = 0; p < PartCount; p++)
+                    for (int p = 0; p < partCount; p++)
                     {
                         var tmp = p * 4;
                         var key = ((uint)data[tmp + 3] << 24)
-                                    | ((uint)data[tmp + 2] << 16)
-                                    | ((uint)data[tmp + 1] << 8)
-                                    | ((uint)data[tmp]);
+                                  | ((uint)data[tmp + 2] << 16)
+                                  | ((uint)data[tmp + 1] << 8)
+                                  | data[tmp];
 
                         keys.Add(key);
                         keyToServer[key] = currentNode;
@@ -66,26 +64,26 @@ namespace NHibernate.Caches.Elasticache
 
             var lookupData = new LookupData
             {
-                keys = keys.ToArray(),
+                Keys = keys.ToArray(),
                 KeyToServer = keyToServer,
                 Servers = nodes.ToArray()
             };
 
-            Interlocked.Exchange(ref this.lookupData, lookupData);
+            Interlocked.Exchange(ref _lookupData, lookupData);
         }
 
         private uint GetKeyHash(string key)
         {
             var keyData = Encoding.UTF8.GetBytes(key);
-            var data = hashAlgorithm.ComputeHash(keyData);
-            return ((uint)data[3] << 24) | ((uint)data[2] << 16) | ((uint)data[1] << 8) | ((uint)data[0]);
+            var data = _hashAlgorithm.ComputeHash(keyData);
+            return ((uint)data[3] << 24) | ((uint)data[2] << 16) | ((uint)data[1] << 8) | data[0];
         }
 
         IMemcachedNode IMemcachedNodeLocator.Locate(string key)
         {
             if (key == null) throw new ArgumentNullException("key");
 
-            var ld = this.lookupData;
+            var ld = _lookupData;
 
             switch (ld.Servers.Length)
             {
@@ -93,7 +91,7 @@ namespace NHibernate.Caches.Elasticache
                 case 1: var tmp = ld.Servers[0]; return tmp.IsAlive ? tmp : null;
             }
 
-            var retval = LocateNode(ld, this.GetKeyHash(key));
+            var retval = LocateNode(ld, GetKeyHash(key));
 
             // if the result is not alive then try to mutate the item key and 
             // find another node this way we do not have to reinitialize every 
@@ -104,7 +102,7 @@ namespace NHibernate.Caches.Elasticache
                 for (var i = 0; i < ld.Servers.Length; i++)
                 {
                     // -- this is from spymemcached so we select the same node for the same items
-                    ulong tmpKey = (ulong)GetKeyHash(i + key);
+                    ulong tmpKey = GetKeyHash(i + key);
                     tmpKey += (uint)(tmpKey ^ (tmpKey >> 32));
                     tmpKey &= 0xffffffffL; /* truncate to 32-bits */
                     // -- end
@@ -120,7 +118,7 @@ namespace NHibernate.Caches.Elasticache
 
         IEnumerable<IMemcachedNode> IMemcachedNodeLocator.GetWorkingNodes()
         {
-            var ld = this.lookupData;
+            var ld = _lookupData;
 
             if (ld.Servers == null || ld.Servers.Length == 0)
                 return Enumerable.Empty<IMemcachedNode>();
@@ -134,7 +132,7 @@ namespace NHibernate.Caches.Elasticache
         private static IMemcachedNode LocateNode(LookupData ld, uint itemKeyHash)
         {
             // get the index of the server assigned to this hash
-            int foundIndex = Array.BinarySearch<uint>(ld.keys, itemKeyHash);
+            int foundIndex = Array.BinarySearch(ld.Keys, itemKeyHash);
 
             // no exact match
             if (foundIndex < 0)
@@ -145,19 +143,19 @@ namespace NHibernate.Caches.Elasticache
                 if (foundIndex == 0)
                 {
                     // it's smaller than everything, so use the last server (with the highest key)
-                    foundIndex = ld.keys.Length - 1;
+                    foundIndex = ld.Keys.Length - 1;
                 }
-                else if (foundIndex >= ld.keys.Length)
+                else if (foundIndex >= ld.Keys.Length)
                 {
                     // the key was larger than all server keys, so return the first server
                     foundIndex = 0;
                 }
             }
 
-            if (foundIndex < 0 || foundIndex > ld.keys.Length)
+            if (foundIndex < 0 || foundIndex > ld.Keys.Length)
                 return null;
 
-            return ld.KeyToServer[ld.keys[foundIndex]];
+            return ld.KeyToServer[ld.Keys[foundIndex]];
         }
 
         #region [ LookupData                   ]
@@ -170,7 +168,7 @@ namespace NHibernate.Caches.Elasticache
         {
             public IMemcachedNode[] Servers;
             // holds all server keys for mapping an item key to the server consistently
-            public uint[] keys;
+            public uint[] Keys;
             // used to lookup a server based on its key
             public Dictionary<uint, IMemcachedNode> KeyToServer;
         }
