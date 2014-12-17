@@ -1,25 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
-    <metadata>
-        <id>NHibernate.Caches.Elasticache</id>
-        <version>0.0.13</version>
-        <authors>hcampos</authors>
-        <requireLicenseAcceptance>false</requireLicenseAcceptance>
-        <description>Cache provider for NHibernate using a custom Enyim Memcached client and the provider found at http://sourceforge.net/projects/nhcontrib
-
-Config Sample:
-&lt;configSections&gt;
-    &lt;section name="elastiCache" type="NHibernate.Caches.Elasticache.ElasticConfigurationSection, NHibernate.Caches.Elasticache" /&gt;
-  &lt;/configSections&gt;
-  &lt;elastiCache endpoint="sa-east-1" interval="00:10:00" cluster="cache-homolog" /&gt;</description>
-        <dependencies>
-            <dependency id="NHibernate" version="3.3.3.4001" />
-            <dependency id="AWSSDK" version="2.0.13.1" />
-            <dependency id="EnyimMemcached" version="2.12" />
-        </dependencies>
-    </metadata>
-    <files>
-        <file src="NHibernate.Caches.Elasticache\bin\Release\NHibernate.Caches.Elasticache.dll" target="lib\NHibernate.Caches.Elasticache.dll" />
-        <file src="NHibernate.Caches.Elasticache\bin\Release\NHibernate.Caches.Elasticache.pdb" target="lib\NHibernate.Caches.Elasticache.pdb" />
-    </files>
+  <metadata>
+    <id>NHibernate.Caches.Elasticache</id>
+    <version>0.1.0</version>
+    <authors>hcampos</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Cache provider for NHibernate using Enyim Memcached client and AmazonElastiCacheClusterConfig</description>
+    <projectUrl>https://github.com/henriquecampos/NHibernate.Caches.Elasticache</projectUrl>
+    <dependencies>
+      <dependency id="NHibernate" version="3.3.3.4001" />
+      <dependency id="Amazon.ElastiCacheCluster" version="1.0.0.0" />
+      <dependency id="EnyimMemcached" version="2.12" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="NHibernate.Caches.Elasticache\bin\Release\NHibernate.Caches.Elasticache.dll" target="lib\NHibernate.Caches.Elasticache.dll" />
+  </files>
 </package>

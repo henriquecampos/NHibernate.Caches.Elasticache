@@ -3,6 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NHibernate.Caches.Elasticache", "NHibernate.Caches.Elasticache\NHibernate.Caches.Elasticache.csproj", "{2A599027-2EF7-49BE-9FE6-E57D31632074}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Itens", "Solution Itens", "{899C2E55-8427-4D85-8F70-8A95601CEC64}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		nuget.nuspec = nuget.nuspec
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

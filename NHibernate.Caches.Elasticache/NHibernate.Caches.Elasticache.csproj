@@ -25,23 +25,26 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
+    <DebugType>none</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <DebugSymbols>true</DebugSymbols>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="AWSSDK, Version=2.0.13.1, Culture=neutral, PublicKeyToken=9f476d3089b52be3, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\AWSSDK.2.0.13.1\lib\net35\AWSSDK.dll</HintPath>
+    <Reference Include="Amazon.ElastiCacheCluster">
+      <HintPath>..\packages\Amazon.ElastiCacheCluster.1.0.0.0\lib\net35\Amazon.ElastiCacheCluster.dll</HintPath>
+    </Reference>
+    <Reference Include="AWSSDK">
+      <HintPath>..\packages\AWSSDK.2.3.13.1\lib\net35\AWSSDK.dll</HintPath>
     </Reference>
     <Reference Include="Enyim.Caching">
       <HintPath>..\packages\EnyimMemcached.2.12\lib\net35\Enyim.Caching.dll</HintPath>
     </Reference>
-    <Reference Include="Iesi.Collections">
+    <Reference Include="Iesi.Collections, Version=1.0.1.0, Culture=neutral, PublicKeyToken=aa95f207798dfdb4, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Iesi.Collections.3.2.0.4000\lib\Net35\Iesi.Collections.dll</HintPath>
     </Reference>
     <Reference Include="NHibernate, Version=3.3.1.4000, Culture=neutral, PublicKeyToken=aa95f207798dfdb4, processorArchitecture=MSIL">
@@ -58,13 +61,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BinaryPool.cs" />
-    <Compile Include="ElasticConfigurationSection.cs" />
-    <Compile Include="ElasticServerPool.cs" />
-    <Compile Include="IElasticConfiguration.cs" />
-    <Compile Include="KetamaNodeLocator.cs" />
-    <Compile Include="MemCacheClient.cs" />
-    <Compile Include="MemCacheProvider.cs" />
+    <Compile Include="ElasticacheClient.cs" />
+    <Compile Include="ElasticacheProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
