@@ -2,15 +2,16 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
     <id>NHibernate.Caches.Elasticache</id>
-    <version>0.1.0</version>
+    <version>1.0.0</version>
     <authors>hcampos</authors>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Cache provider for NHibernate using Enyim Memcached client and AmazonElastiCacheClusterConfig</description>
     <projectUrl>https://github.com/henriquecampos/NHibernate.Caches.Elasticache</projectUrl>
     <dependencies>
-      <dependency id="NHibernate" version="3.3.3.4001" />
-      <dependency id="Amazon.ElastiCacheCluster" version="1.0.0.0" />
-      <dependency id="EnyimMemcached" version="2.12" />
+      <dependency id="Amazon.ElastiCacheCluster" version="1.0.0.3" />
+      <dependency id="EnyimMemcached" version="2.13" />
+      <dependency id="Iesi.Collections" version="4.0.1.4000" />
+      <dependency id="NHibernate" version="4.0.4.4000" />
     </dependencies>
   </metadata>
   <files>
