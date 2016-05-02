@@ -34,8 +34,8 @@
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Amazon.ElastiCacheCluster, Version=1.0.0.3, Culture=neutral, PublicKeyToken=445456c82d5a0fce, processorArchitecture=MSIL">
-      <HintPath>..\packages\Amazon.ElastiCacheCluster.1.0.0.3\lib\net35\Amazon.ElastiCacheCluster.dll</HintPath>
+    <Reference Include="Amazon.ElastiCacheCluster, Version=1.0.0.4, Culture=neutral, PublicKeyToken=445456c82d5a0fce, processorArchitecture=MSIL">
+      <HintPath>..\packages\Amazon.ElastiCacheCluster.1.0.0.4\lib\net35\Amazon.ElastiCacheCluster.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Enyim.Caching, Version=2.13.0.0, Culture=neutral, PublicKeyToken=cec98615db04012e, processorArchitecture=MSIL">
