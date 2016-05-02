@@ -12,11 +12,9 @@ namespace NHibernate.Caches.Elasticache
     public class ElasticacheClient : ICache
     {
         private static readonly IInternalLogger Log;
-        [ThreadStatic]
-        private static HashAlgorithm _hasher;
+        private static readonly HashAlgorithm Hasher;
+        private static readonly MD5 Md5;
 
-        [ThreadStatic]
-        private static MD5 _md5;
         private readonly MemcachedClient _client;
         private readonly int _expiry;
 
@@ -26,6 +24,8 @@ namespace NHibernate.Caches.Elasticache
         static ElasticacheClient()
         {
             Log = LoggerProvider.LoggerFor(typeof(ElasticacheClient));
+            Hasher = HashAlgorithm.Create();
+            Md5 = MD5.Create();
         }
 
         public ElasticacheClient(string regionName, IDictionary<string, string> properties, MemcachedClient memcachedClient)
@@ -63,16 +63,6 @@ namespace NHibernate.Caches.Elasticache
             }
         }
 
-        private static HashAlgorithm Hasher
-        {
-            get { return _hasher ?? (_hasher = HashAlgorithm.Create()); }
-        }
-
-        private static MD5 Md5
-        {
-            get { return _md5 ?? (_md5 = MD5.Create()); }
-        }
-
         #region ICache Members
 
         public object Get(object key)
@@ -106,11 +96,11 @@ namespace NHibernate.Caches.Elasticache
         {
             if (key == null)
             {
-                throw new ArgumentNullException("key", "null key not allowed");
+                throw new ArgumentNullException(nameof(key), "null key not allowed");
             }
             if (value == null)
             {
-                throw new ArgumentNullException("value", "null value not allowed");
+                throw new ArgumentNullException(nameof(value), "null value not allowed");
             }
 
             if (Log.IsDebugEnabled)
@@ -138,7 +128,7 @@ namespace NHibernate.Caches.Elasticache
         {
             if (key == null)
             {
-                throw new ArgumentNullException("key");
+                throw new ArgumentNullException(nameof(key));
             }
             if (Log.IsDebugEnabled)
             {
@@ -172,15 +162,9 @@ namespace NHibernate.Caches.Elasticache
             return Timestamper.Next();
         }
 
-        public int Timeout
-        {
-            get { return Timestamper.OneMs * 60000; }
-        }
+        public int Timeout => Timestamper.OneMs * 60000;
 
-        public string RegionName
-        {
-            get { return _region; }
-        }
+        public string RegionName => _region;
 
         #endregion
 
@@ -215,7 +199,7 @@ namespace NHibernate.Caches.Elasticache
         /// <returns></returns>
         private string FullKeyAsString(object key)
         {
-            return string.Format("{0}{1}@{2}", _regionPrefix, _region, (key == null ? string.Empty : key.ToString()));
+            return $"{_regionPrefix}{_region}@{key?.ToString() ?? string.Empty}";
         }
 
         /// <summary>
