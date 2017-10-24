@@ -15,6 +15,6 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="NHibernate.Caches.Elasticache\bin\Release\NHibernate.Caches.Elasticache.dll" target="lib\NHibernate.Caches.Elasticache.dll" />
+    <file src="NHibernate.Caches.Elasticache\bin\Release\NHibernate.Caches.Elasticache.dll" target="lib\net461" />
   </files>
 </package>
