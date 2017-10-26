@@ -6,6 +6,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NHibernate.Caches.Elasticache
 {
@@ -157,6 +159,65 @@ namespace NHibernate.Caches.Elasticache
             // do nothing
         }
 
+        public Task<object> GetAsync(object key, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled<object>(cancellationToken);
+            }
+            return Task.FromResult(Get(key));
+        }
+
+        public Task PutAsync(object key, object value, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+            Put(key, value);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(object key, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+            Remove(key);
+            return Task.CompletedTask;
+        }
+
+        public Task ClearAsync(CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+            Clear();
+            return Task.CompletedTask;
+        }
+
+        public Task LockAsync(object key, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+            Lock(key);
+            return Task.CompletedTask;
+        }
+
+        public Task UnlockAsync(object key, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+            Unlock(key);
+            return Task.CompletedTask;
+        }
+
         public long NextTimestamp()
         {
             return Timestamper.Next();
@@ -216,7 +277,7 @@ namespace NHibernate.Caches.Elasticache
         }
 
         /// <summary>
-        /// Compute an alternate key hash; used as a check that the looked-up value is 
+        /// Compute an alternate key hash; used as a check that the looked-up value is
         /// in fact what has been put there in the first place.
         /// </summary>
         /// <param name="key"></param>
