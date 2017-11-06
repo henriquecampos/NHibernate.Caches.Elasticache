@@ -2,11 +2,12 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
     <id>NHibernate.Caches.Elasticache</id>
-    <version>1.2.0</version>
+    <version>1.2.1</version>
     <authors>hcampos</authors>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Cache provider for NHibernate using Enyim Memcached client and AmazonElastiCacheClusterConfig</description>
     <projectUrl>https://github.com/henriquecampos/NHibernate.Caches.Elasticache</projectUrl>
+    <tags>NHibernate cache AWS elasticache aws memcached caching enyim</tags>
     <dependencies>
       <dependency id="Amazon.ElastiCacheCluster" version="1.0.1.0" />
       <dependency id="EnyimMemcached" version="2.16.0" />
