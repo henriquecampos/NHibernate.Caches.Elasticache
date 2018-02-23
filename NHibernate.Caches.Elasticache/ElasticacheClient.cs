@@ -14,8 +14,10 @@ namespace NHibernate.Caches.Elasticache
     public class ElasticacheClient : ICache
     {
         private static readonly IInternalLogger Log;
-        private static readonly HashAlgorithm Hasher;
-        private static readonly MD5 Md5;
+        [ThreadStatic]
+        private static HashAlgorithm _hasher;
+        [ThreadStatic]
+        private static MD5 _md5;
 
         private readonly MemcachedClient _client;
         private readonly int _expiry;
@@ -26,8 +28,6 @@ namespace NHibernate.Caches.Elasticache
         static ElasticacheClient()
         {
             Log = LoggerProvider.LoggerFor(typeof(ElasticacheClient));
-            Hasher = HashAlgorithm.Create();
-            Md5 = MD5.Create();
         }
 
         public ElasticacheClient(string regionName, IDictionary<string, string> properties, MemcachedClient memcachedClient)
@@ -228,6 +228,16 @@ namespace NHibernate.Caches.Elasticache
         public string RegionName => _region;
 
         #endregion
+
+        private static HashAlgorithm Hasher
+        {
+            get { return _hasher ?? (_hasher = HashAlgorithm.Create()); }
+        }
+
+        private static MD5 Md5
+        {
+            get { return _md5 ?? (_md5 = MD5.Create()); }
+        }
 
         private static string GetExpirationString(IDictionary<string, string> props)
         {
