@@ -121,7 +121,7 @@ namespace NHibernate.Caches.Elasticache
             {
                 if (Log.IsWarnEnabled)
                 {
-                    Log.WarnFormat("could not save: {0} => {1} ({2})", key, value);
+                    Log.WarnFormat("could not save: {0} => {1}", key, value);
                 }
             }
         }
