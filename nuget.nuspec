@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
     <id>NHibernate.Caches.Elasticache</id>
-    <version>1.2.2</version>
+    <version>1.2.3</version>
     <authors>hcampos</authors>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Cache provider for NHibernate using Enyim Memcached client and AmazonElastiCacheClusterConfig</description>
